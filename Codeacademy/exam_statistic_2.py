@@ -14,8 +14,7 @@ def print_grades(grades_input):
 def grades_sum(scores):
     """Calculation of the sum of grades."""
 
-    total = 0
-    res = sum([grade + total for grade in scores])
+    res = sum([grade for grade in scores])
     return res
 
 
