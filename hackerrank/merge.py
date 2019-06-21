@@ -8,16 +8,21 @@
 # r=next-challenge&h_v=zen&h_r=next-challenge&h_v=zen&h_r=next-challenge&h_v=zen
 import textwrap
 
+
 def merge_the_tools(string, k):
     # your code goes here
     text = textwrap.wrap(string, k)
-    text = list(map(set, text))
+    text = list(map(list, text))
     lst = []
-    for item in text:
-        lst.append(list(item))
-    print(lst)
-    for item in lst:
-        print(''.join(item))
+    for i in range(len(text)):
+        for j in range(len(text[i])):
+            a_count = text[i].count(text[i][j])
+            if a_count > 1:
+                text[i].pop([j])
+
+
+    for alpha in lst:
+        print(''.join(alpha))
 
 
 if __name__ == '__main__':
