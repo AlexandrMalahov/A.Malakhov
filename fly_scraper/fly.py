@@ -1,0 +1,327 @@
+"""Python 3.7. Parsing of the web site https://www.orbest.com/."""
+# сделать с аргпарс и объеденить проверки ввода в одну функцию
+
+
+import argparse
+import datetime
+import re
+import requests
+
+from lxml import html
+
+
+def input_query_params():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-w', '--way', help='input way type("ONE_WAY" or "ROUND_TRIP")')
+    parser.add_argument('-d', '--dep_city', help='input departure city("LIS", "CUN", "PUJ")')
+    parser.add_argument('-a', '--arr_city', help='input arrival city("LIS", "CUN", "PUJ")')
+    parser.add_argument('-d_d', '--dep_date', help='input a departure date')
+    parser.add_argument('-r', '--ret_date', help='input a return date')
+    parser.add_argument('-n_a', '--num_adults', help='input a number of adults')
+    parser.add_argument('-n_c', '--num_child', help='input a number of children')
+    parser.add_argument('-n_i', '--num_infants', help='input a number of infants')
+    args = parser.parse_args()
+    params = (
+        args.way, args.dep_city,
+        args.arr_city, args.dep_date,
+        args.ret_date, args.num_adults,
+        args.num_child, args.num_infants
+    )
+    return params
+
+
+def manual_input(query_params):
+    query_params = input_query_params()
+
+    way = query_params[0]
+    while True:  # Checking and input a flight type.
+        try:
+            way.upper()
+        except AttributeError:
+            pass
+        if way == 'ONE_WAY' or way == 'ROUND_TRIP':
+            break
+        else:
+            print('Incorrect flight type. Please, enter a correct way.')
+            way = input(
+                'Please, enter a way'
+                '("ONE_WAY" or "ROUND_TRIP"): '
+            ).upper()
+
+
+    iata_code = ['CUN', 'LIS', 'PUJ']
+    # Checking and input IATA code of departure airport
+    dep_city = query_params[1]
+    while True:
+        try:
+            dep_city.upper()
+        except AttributeError:
+            pass
+        if dep_city in iata_code:
+            break
+        else:
+            print(
+                'Incorrect iata code. Please, '
+                'enter a correct iata code("{}" '
+                'or "{}" or "{}")'.format(
+                    iata_code[0], iata_code[1], iata_code[2]
+                )
+            )
+            dep_city = input('Please, enter IATA code departure city: ').upper()
+
+    # Checking and input IATA code of arrival airport
+    arr_city = query_params[2]
+    while True:
+        try:
+            arr_city.upper()
+        except AttributeError:
+            pass
+        if arr_city in iata_code:
+            break
+        else:
+            print(
+                'Incorrect iata code. Please, '
+                'enter a correct iata code("{}" '
+                'or "{}" or "{}")'.format(
+                    iata_code[0], iata_code[1], iata_code[2]
+                )
+            )
+            arr_city = input('Please, enter IATA code arrival city: ').upper()
+
+    # Input and checking for correctness departure date
+    dep_date = query_params[3]
+    while True:
+        try:
+            dep_date = re.findall(r'(\d|\d{2}).(\d{2}).(\d{4})', dep_date)[0]
+            if datetime.date(int(dep_date[2]), int(dep_date[1]), int(dep_date[0])):
+                break
+        except (IndexError, TypeError):
+            print(
+                'Incorrect date. Please, enter a '
+                'correct date in format: day/month/year'
+            )
+            dep_date = input('Please, enter a departure date(dd/mm/yyyy): ')
+    # Input and checking for correctness return date
+    ret_date = query_params[4]
+    while True:
+        if way == 'ONE_WAY':
+            ret_date = dep_date
+            break
+        elif way == 'ROUND_TRIP':
+            try:
+                ret_date = re.findall(
+                    r'(\d|\d{2}).(\d{2}).(\d{4})',
+                    ret_date
+                )[0]
+
+                if datetime.date(int(ret_date[2]), int(ret_date[1]), int(ret_date[0])):
+                    break
+            except (IndexError, TypeError):
+                print(
+                    'Incorrect date. Please, enter a '
+                    'correct date in format: day/month/year'
+                )
+                ret_date = input('Please, enter a return date(dd/mm/yyyy): ')
+    # checking number of adults
+    adults = query_params[5]
+    while True:
+        try:
+            adults = int(adults)
+            if adults <= 0 or adults >= 9:
+                print('Number of adults must be more or equal 1 and less or equal 9.')
+
+            else:
+                break
+        except (ValueError, TypeError):
+            print('Number of adults must be integer.')
+        adults = input(
+            'Please, enter a number of adults'
+            '(number must be more than 0 and less or equal 9): '
+        )
+
+    # checking number of children
+    children = query_params[6]
+    while True:
+        try:
+            children = int(children)
+            if children < 0 or children > adults:
+                print('Number of children must be more or equal 0 and less or equal number of adults')
+            else:
+                break
+        except (ValueError, TypeError):
+            print('Number of children must be integer number.')
+        children = input(
+            'Please, enter a number of children'
+            '(number must be more or equal than 0 and less or equal number of adults): '
+        )
+
+    # checking number of infants
+    infants = query_params[7]
+    while True:
+        try:
+            infants = int(infants)
+            if infants < 0 or infants > adults:
+                print('Number of infants must be more or equal 0 and less or equal number of adults.')
+            else:
+                break
+        except (ValueError, TypeError):
+            print('Number of children must be integer number.')
+        infants = input(
+            'Please, enter a number of infants'
+            '(number must be more or equal than 0 and less or equal number of adults): '
+        )
+    return way, dep_city, arr_city, '/'.join(dep_date), '/'.join(ret_date), adults, children, infants
+
+
+def connection(params_func):
+    """Function gets params of searching and set connection with site."""
+    params = {
+        'buscadorVuelosEsb.tipoTransicion': 'S',
+        'buscadorVuelosEsb.routeType': params_func[0],
+        'buscadorVuelosEsb.origen': params_func[1],
+        'buscadorVuelosEsb.destino': params_func[2],
+        'buscadorVuelosEsb.fsalida': params_func[3],
+        'buscadorVuelosEsb.fregreso': params_func[4],
+        'buscadorVuelosEsb.numadultos': params_func[5],
+        'buscadorVuelosEsb.numninos': params_func[6],
+        'buscadorVuelosEsb.numbebes': params_func[7]
+    }
+    tree = html.fromstring(
+        requests.post(
+            'https://en.orbest.com/b2c'
+            '/pages/flight/disponibili'
+            'dadSubmit.html?', params
+        ).content
+    )
+    return tree
+
+
+def scrape(connect_func, params_func):
+    """Gets data from site."""
+
+    params = params_func
+    tree = connect_func
+    flights = [[], []]  # List of vars of flights
+    # (first lis for outbound flights, second list for return flight)
+    if params[0] == 'ONE_WAY':
+        data = tree.xpath(
+            '/html/body/div[@id="content"]'
+            '/div/div/form[@id="formularioValoracion"]'
+            '/div/div[@class="flexcols"]/section'
+            '/div[@id="tabs2"]/div/div/ol/li'
+        )
+        flights = [  # List of lists of flights
+            information.xpath(
+                'div[@class="vuelo-wrap'
+                ' vuelo-wrap3"]//text()'
+            ) for information in data
+        ]
+
+    elif params[0] == 'ROUND_TRIP':
+        data = tree.xpath(               # Getting data of outbound flights
+            '/html/body/div[@id="content"]'
+            '/div/div/form[@id="formularioValoracion"]'
+            '/div/div[@class="flexcols"]/section'
+            '/div[@id="tabs2"]/div/div/'
+            'div[@class="wrap-sel-custom combinado"]'
+            '/div[@class="grid-cols clearfix"]'
+        )
+
+        for details in data:
+            flight_first = ' '.join(
+                details.xpath(
+                    'div[@class="col2 col-first"]'
+                    '/div[@class="datos"]/div//text()'
+                )
+            )  # Getting data of departure flights
+
+            fly_class = details.xpath(
+                'div[@class="col2 col-first"]'
+                '/div[@class="datos"]/div'
+                '/div[@class="clase"]/span//text()'
+            )
+            cities = re.findall(r'\b\w{3}\b', flight_first)
+            time = re.findall(r'\d{1,2}:\d{2}', flight_first)
+            price = re.findall(r'.\d+,\d{2}', flight_first)
+            time = [time[i:i+2] for i in range(0, len(time), 2)]
+
+            for i, class_type in enumerate(fly_class):
+                flights[0].append(
+                    [cities[0],
+                     cities[1],
+                     class_type,
+                     price[i],
+                     time[i][0],
+                     time[i][1]]
+                )
+
+            flight_last = ' '.join(details.xpath(
+                'div[@class="col2 col-last"]'
+                '/div[@class="datos"]/div//text()'
+            ))  # Getting data of return flights
+
+            fly_class = details.xpath(
+                'div[@class="col2 col-last"]'
+                '/div[@class="datos"]/div'
+                '/div[@class="clase"]/span//text()'
+            )
+            cities = re.findall(r'\b\w{3}\b', flight_last)
+            time = re.findall(r'\d{1,2}:\d{2}', flight_last)
+            price = re.findall(r'.\d+,\d{2}', flight_last)
+            time = [time[i:i+2] for i in range(0, len(time), 2)]
+
+            for i, class_type in enumerate(fly_class):
+                flights[1].append([
+                    cities[0],
+                    cities[1],
+                    class_type,
+                    price[i],
+                    time[i][0],
+                    time[i][1]
+                ])
+
+    return flights
+
+
+def data_print(data_func, params_func):
+    """Result printing."""
+
+    if data_func == list() or data_func == [[], []]:
+        print(
+            'There is not availability enough '
+            'for the selected flights. Please '
+            'select another date.'
+        )
+    else:
+        if params_func[0] == 'ONE_WAY':
+            for i, _ in enumerate(data_func):
+                print('Way:', data_func[i][3])
+                print('Departure time:', data_func[i][5])
+                print('Arrival time:', data_func[i][7])
+                print('Class:', data_func[i][9])
+                print('Price:', data_func[i][0])
+                print('\n')
+        elif params_func[0] == 'ROUND_TRIP':
+            print('Outbound flights', '\n')
+            for info in data_func[0]:
+                print('Way: {0}-{1}'.format(info[0], info[1]))
+                print('Departure time:', info[4])
+                print('Arrival time:', info[5])
+                print('Class:', info[2])
+                print('Price:', info[3])
+                print('\n')
+            print('Return flights', '\n')
+            for inform in data_func[1]:
+                print('Way: {0}-{1}'.format(inform[0], inform[1]))
+                print('Departure time:', inform[4])
+                print('Arrival time:', inform[5])
+                print('Class:', inform[2])
+                print('Price:', inform[3])
+                print('\n')
+
+
+if __name__ == '__main__':
+    parameters = manual_input(input_query_params())
+    connect = connection(parameters)
+    data_flights = scrape(connect, parameters)
+    data_print(data_flights, parameters)
