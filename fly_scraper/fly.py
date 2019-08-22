@@ -30,15 +30,49 @@ def input_query_params():
     return params
 
 
-def manual_input(query_params):
-    query_params = input_query_params()
+def manual_input(count):
+    if count == 0:
+        query_params = input_query_params()
+        way = query_params[0]
+        dep_city = query_params[1]
+        arr_city = query_params[2]
+        dep_date = query_params[3]
+        ret_date = query_params[4]
+        adults = query_params[5]
+        children = query_params[6]
+        infants = query_params[7]
+    else:
+        way = input(
+            'Please, enter a way'
+            '("ONE_WAY" or "ROUND_TRIP"): '
+        )
+        dep_city = input('Please, enter IATA code of departure city: ')
+        arr_city = input('Please, enter IATA code of arrival city: ')
+        dep_date = input('Please, enter a departure date(dd/mm/yyyy): ')
+        ret_date = dep_date
+        if way.upper() == 'ROUND_TRIP':
+            ret_date = input('Please, enter a return date(dd/mm/yyyy): ')
+        adults = input(
+            'Please, enter a number of adults'
+            '(number must be more than 0 and less or equal 9): '
+        )
+        children = input(
+            'Please, enter a number of children'
+            '(number must be more or equal than 0 and less or equal number of adults): '
+        )
+        infants = input(
+            'Please, enter a number of infants'
+            '(number must be more or equal than 0 and less or equal number of adults): '
+        )
 
-    way = query_params[0]
     while True:  # Checking and input a flight type.
-        try:
-            way.upper()
-        except AttributeError:
-            pass
+        if way is None:
+            way = input(
+                'Please, enter a way'
+                '("ONE_WAY" or "ROUND_TRIP"): '
+            ).upper()
+        else:
+            way = way.upper()
         if way == 'ONE_WAY' or way == 'ROUND_TRIP':
             break
         else:
@@ -46,17 +80,17 @@ def manual_input(query_params):
             way = input(
                 'Please, enter a way'
                 '("ONE_WAY" or "ROUND_TRIP"): '
-            ).upper()
+            )
 
 
     iata_code = ['CUN', 'LIS', 'PUJ']
     # Checking and input IATA code of departure airport
-    dep_city = query_params[1]
+
     while True:
-        try:
-            dep_city.upper()
-        except AttributeError:
-            pass
+        if dep_city is None:
+            dep_city = input('Please, enter IATA code of departure city: ').upper()
+        else:
+            dep_city = dep_city.upper()
         if dep_city in iata_code:
             break
         else:
@@ -67,15 +101,16 @@ def manual_input(query_params):
                     iata_code[0], iata_code[1], iata_code[2]
                 )
             )
-            dep_city = input('Please, enter IATA code departure city: ').upper()
+            dep_city = input('Please, enter IATA code of departure city: ')
 
     # Checking and input IATA code of arrival airport
-    arr_city = query_params[2]
+
     while True:
-        try:
-            arr_city.upper()
-        except AttributeError:
-            pass
+        if arr_city is None:
+            arr_city = input('Please, enter IATA code of arrival city: ').upper()
+        else:
+            arr_city = arr_city.upper()
+
         if arr_city in iata_code:
             break
         else:
@@ -86,29 +121,33 @@ def manual_input(query_params):
                     iata_code[0], iata_code[1], iata_code[2]
                 )
             )
-            arr_city = input('Please, enter IATA code arrival city: ').upper()
+            arr_city = input('Please, enter IATA code of arrival city: ')
 
     # Input and checking for correctness departure date
-    dep_date = query_params[3]
+
     while True:
         try:
+            if dep_date is None:
+                dep_date = input('Please, enter a departure date(dd/mm/yyyy): ')
             dep_date = re.findall(r'(\d|\d{2}).(\d{2}).(\d{4})', dep_date)[0]
             if datetime.date(int(dep_date[2]), int(dep_date[1]), int(dep_date[0])):
                 break
-        except (IndexError, TypeError):
+        except (IndexError, TypeError, ValueError):
             print(
                 'Incorrect date. Please, enter a '
                 'correct date in format: day/month/year'
             )
             dep_date = input('Please, enter a departure date(dd/mm/yyyy): ')
     # Input and checking for correctness return date
-    ret_date = query_params[4]
+
     while True:
         if way == 'ONE_WAY':
             ret_date = dep_date
             break
         elif way == 'ROUND_TRIP':
             try:
+                if ret_date is None:
+                    ret_date = input('Please, enter a return date(dd/mm/yyyy): ')
                 ret_date = re.findall(
                     r'(\d|\d{2}).(\d{2}).(\d{4})',
                     ret_date
@@ -116,15 +155,20 @@ def manual_input(query_params):
 
                 if datetime.date(int(ret_date[2]), int(ret_date[1]), int(ret_date[0])):
                     break
-            except (IndexError, TypeError):
+            except (IndexError, TypeError, ValueError):
                 print(
                     'Incorrect date. Please, enter a '
                     'correct date in format: day/month/year'
                 )
                 ret_date = input('Please, enter a return date(dd/mm/yyyy): ')
     # checking number of adults
-    adults = query_params[5]
+
     while True:
+        if adults is None:
+            adults = input(
+                'Please, enter a number of adults'
+                '(number must be more than 0 and less or equal 9): '
+            )
         try:
             adults = int(adults)
             if adults <= 0 or adults >= 9:
@@ -140,8 +184,13 @@ def manual_input(query_params):
         )
 
     # checking number of children
-    children = query_params[6]
+
     while True:
+        if children is None:
+            children = input(
+                'Please, enter a number of children'
+                '(number must be more or equal than 0 and less or equal number of adults): '
+            )
         try:
             children = int(children)
             if children < 0 or children > adults:
@@ -156,8 +205,13 @@ def manual_input(query_params):
         )
 
     # checking number of infants
-    infants = query_params[7]
+
     while True:
+        if infants is None:
+            infants = input(
+                'Please, enter a number of infants'
+                '(number must be more or equal than 0 and less or equal number of adults): '
+            )
         try:
             infants = int(infants)
             if infants < 0 or infants > adults:
@@ -321,7 +375,12 @@ def data_print(data_func, params_func):
 
 
 if __name__ == '__main__':
-    parameters = manual_input(input_query_params())
-    connect = connection(parameters)
-    data_flights = scrape(connect, parameters)
-    data_print(data_flights, parameters)
+    counter = 0
+    while True:
+        parameters = manual_input(counter)
+        connect = connection(parameters)
+        data_flights = scrape(connect, parameters)
+        data_print(data_flights, parameters)
+        counter += 1
+        if input('For quit enter "q"').upper() == 'Q':
+            break
