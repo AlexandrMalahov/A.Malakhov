@@ -27,8 +27,13 @@ def check_flight_type(way):
     return False
 
 
+<<<<<<< HEAD
 def check_cities(dep_city, arr_city):
     """Check that IATA codes are valid."""
+=======
+    iata_code = AVAILABLE_ROUTES
+
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
     try:
         dep_city = dep_city.upper()
         arr_city = arr_city.upper()
@@ -64,6 +69,7 @@ def check_dates(*dates):
         except IndexError:
             print('Incorrect date.')
             return False
+<<<<<<< HEAD
         except TypeError:
             print('You did not enter a date.')
             return False
@@ -81,6 +87,13 @@ def check_dates(*dates):
             checked_dates.append(date)
     if checked_dates[0] > checked_dates[1]:
         print("Departure date mustn't be more than return date.")
+=======
+        else:
+            return True
+    except (IndexError, TypeError, ValueError):
+        print('Incorrect date. Please, enter a '
+              'correct date in format: day/month/year')
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
         return False
     return True
 
@@ -90,7 +103,15 @@ def check_passengers(adults, children, infants):
 
     try:
         adults = int(adults)
+<<<<<<< HEAD
     except ValueError:
+=======
+        if adults <= 0 or adults >= 9:
+            print('Number of adults must be more '
+                  'or equal 1 and less or equal 9.')
+            return False
+    except (ValueError, TypeError):
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
         print('Number of adults must be integer number.')
         return False
     except TypeError:
@@ -106,7 +127,17 @@ def check_passengers(adults, children, infants):
 
     try:
         children = int(children)
+<<<<<<< HEAD
     except ValueError:
+=======
+        if children < 0 or children + adults > 9:
+            print('Number of children must be more or equal 0 '
+                  'and less or equal number of adults, and '
+                  'sum of number of adults and children must '
+                  'not be more 9.')
+            return False
+    except (ValueError, TypeError):
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
         print('Number of children must be integer number.')
         return False
     except TypeError:
@@ -121,7 +152,15 @@ def check_passengers(adults, children, infants):
 
     try:
         infants = int(infants)
+<<<<<<< HEAD
     except ValueError:
+=======
+        if infants < 0 or infants > adults or infants > 5:
+            print('Number of infants must be more or equal '
+                  '0 and less or equal number of adults.')
+            return False
+    except (ValueError, TypeError):
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
         print('Number of infants must be integer number.')
         return False
     except TypeError:
@@ -198,6 +237,7 @@ def manual_input():
             break
 
     while True:
+<<<<<<< HEAD
         dep_city = input(
             'Please, enter IATA '
             'code of departure city({}): '.format(
@@ -212,6 +252,14 @@ def manual_input():
             )
         ).upper()
 
+=======
+        dep_city = input('Please, enter IATA '
+                         'code of departure city({}): '
+                         .format(', '.join(AVAILABLE_ROUTES))).upper()
+        arr_city = input('Please, enter IATA '
+                         'code of arrival city({}): '
+                         .format(', '.join(AVAILABLE_ROUTES))).upper()
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
         if check_cities(dep_city, arr_city):
             break
 
@@ -267,6 +315,15 @@ def get_available_routes():
     return routes_json
 
 
+def get_available_routes():
+    """Creating a list of available for flights cities."""
+
+    response = requests.get('https://en.orbest.com/').content
+    res = re.findall(r'routesWebSale = {(.+)}', str(response))[0]
+    cities = list(set(re.findall(r'\b[A-Z]{3}\b', res)))
+    return cities
+
+
 def get_data_page(search_params):
     """Get html page from web-site."""
 
@@ -299,8 +356,13 @@ def get_data_page(search_params):
     return data
 
 
+<<<<<<< HEAD
 def parse_results(data_page, *args):
     """Get data about flights."""
+=======
+def get_results_for_one_way(data_page):
+    """Getting data about flights for "one way" flight type."""
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
 
     def parse_results_for_one_way(data_page):
         """Get data about flights for "one way" flight type."""
@@ -316,8 +378,49 @@ def parse_results(data_page, *args):
             ) for information in data
         ]
 
+<<<<<<< HEAD
         time_dif = []
         for flight in flights:
+=======
+
+def get_results_for_round_trip(data_page):
+    """Getting data about flights for "round trip" flight type."""
+
+    try:
+        data = data_page[0].xpath(  # Getting data of outbound flights
+            'div[@class="wrap-sel-custom combinado"]'
+            '/div[@class="grid-cols clearfix"]'
+        )
+        flights = []
+        for details in data:
+            flight_first = details.xpath(
+                'div[@class="col2 col-first"]'
+                '/div[@class="datos"]/div//text()'
+            )
+            # Getting data of departure flights
+            flights.append(flight_first)
+            flight_last = details.xpath(
+                'div[@class="col2 col-last"]'
+                '/div[@class="datos"]/div//text()'
+            )
+            flights = [flight_first, flight_last]
+    except IndexError:
+        flights = []
+
+    return flights
+
+
+def scrape(search_params):
+    """Processing data from the received web page."""
+
+    if not search_params:
+        search_params = manual_input()
+    data_page = get_data_page(search_params)
+    if search_params['flight_type'] == 'ONE_WAY':
+        data = get_results_for_one_way(data_page)
+        time_dif = []
+        for flight in data:
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
             dep_time = re.findall(r'\d{1,2}:\d{2}',
                                   ' '.join(flight))[0].split(':')
             arr_time = re.findall(r'\d{1,2}:\d{2}',
@@ -342,8 +445,13 @@ def parse_results(data_page, *args):
             arr_time = flight[8]
             flight_time = flight[0]
             flight_class = flight[10]
+<<<<<<< HEAD
             flight = [dep_city, arr_city, args[1], dep_time, arr_time,
                       flight_time, flight_class, currency_symbol, price]
+=======
+            flight = [dep_city, arr_city, price, dep_time,
+                      arr_time, flight_time, flight_class]
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
             flight_list[0].append(flight)
 
         return flight_list
@@ -376,6 +484,7 @@ def parse_results(data_page, *args):
             flights = [flight_first, flight_last]
 
         flight_list = [[], []]
+<<<<<<< HEAD
         for i, _ in enumerate(flights):
             cities = re.findall(r'[A-Z]{3}', ''.join(flights[i]))
             cities = [cities[i:i + 2] for i in
@@ -387,11 +496,23 @@ def parse_results(data_page, *args):
                 r'(.)\d+,\d{2}', ''.join(flights[i])
             )[0][0]
             time = re.findall(r'\d{1,2}:\d{2}', ''.join(flights[i]))
+=======
+        for i, _ in enumerate(data):
+            cities = re.findall(r'[A-Z]{3}', ''.join(data[i]))
+            cities = [cities[i:i + 2] for i in
+                      range(0, len(cities), 2)][:len(cities) // 4]
+            price = re.findall(r'.\d+,\d{2}', ''.join(data[i]))
+            time = re.findall(r'\d{1,2}:\d{2}', ''.join(data[i]))
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
             time = [time[l:l + 2] for l in
                     range(0, len(time), 2)][:len(time) // 4]
             flight_class = re.findall(r'Promotional|Economic|Standard|'
                                       r'Flexible\sPlus|Flexible|Plena',
+<<<<<<< HEAD
                                       ''.join(flights[i]))
+=======
+                                      ''.join(data[i]))
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
             time_dif = []
             for j, _ in enumerate(time):
                 dep_time = time[j][0].split(':')
@@ -405,10 +526,15 @@ def parse_results(data_page, *args):
             for k, _ in enumerate(price):
                 dep_city = cities[k][0]
                 arr_city = cities[k][1]
+<<<<<<< HEAD
                 flight = [
                     dep_city, arr_city, dates[i], time[k][0], time[k][1],
                     time_dif[k], flight_class[k], currency_symbol, price[k]
                 ]
+=======
+                flight = [dep_city, arr_city, price[k], time[k][0],
+                          time[k][1], time_dif[k], flight_class[k]]
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
                 flight_list[i].append(flight)
 
         return flight_list
@@ -418,6 +544,7 @@ def parse_results(data_page, *args):
     elif args[0] == 'ROUND_TRIP':
         return parse_results_for_round_trip(data_page)
 
+<<<<<<< HEAD
 
 def generate_quotes(data):
     """To prepare data to print."""
@@ -495,12 +622,58 @@ def print_result(result_func):
 if __name__ == '__main__':
     AVAILABLE_ROUTES = get_available_routes()
     query_params = get_query_params_from_command_line()
+=======
+def print_result(result_func):
+    """Printing results."""
+
+    for i, _ in enumerate(result_func):
+        list_for_print_result = ['Outbound flights', 'Return flights']
+        if result_func == [[]] or result_func == [[], []]:
+            print(
+                'There is not availability enough '
+                'for the selected flights. Please '
+                'select another date.'
+            )
+            break
+        else:
+            print(list_for_print_result[i], '\n')
+            for info in result_func[i]:
+                way = info[0] + '-' + info[1]
+                price = info[2]
+                dep_time = info[3]
+                arr_time = info[4]
+                flight_time = info[5]
+                flight_class = info[6]
+                print('Way:', way)
+                print('Price:', price)
+                print('Departure time', dep_time)
+                print('Arrival time:', arr_time)
+                print('Flight time:', flight_time)
+                print('Flight class:', flight_class)
+                print('\n')
+
+
+if __name__ == "__main__":
+    AVAILABLE_ROUTES = get_available_routes()
+    query_params = get_query_params_from_command_line()
+    # print(get_data_page(query_params))
+    # print(AVAILABLE_ROUTES)
+    # print(query_params)
+    # print(get_results_for_one_way(get_data_page(query_params)))
+    # print(get_results_for_round_trip(get_data_page(query_params)))
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
     while True:
         result_data = scrape(query_params)
         print_result(result_data)
         query_params = None
+<<<<<<< HEAD
         if input(
             'Enter "EXIT" to close program. '
             'For continue press "Enter". '
         ).upper() == 'EXIT':
+=======
+        escape = input('Enter "EXIT" to close program. '
+                       'For continue press "Enter".').upper()
+        if escape == 'EXIT':
+>>>>>>> e495823012c9526eae850dfe5dac743345b990fa
             break
