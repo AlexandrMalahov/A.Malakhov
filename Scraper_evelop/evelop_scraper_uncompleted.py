@@ -209,7 +209,7 @@ def manual_input(routes):
         arr_city = input(
             'Please, enter IATA '
             'code of arrival city({}): '.format(
-                ', '.join(routes)
+                ', '.join(routes[dep_city])
             )
         ).upper()
 
@@ -299,176 +299,179 @@ def get_data_page(search_params):
     return tree
 
 
-def get_price(get_params, route, data_page):
-
-    if route == 'ONE_WAY':
-        price_list = data_page.xpath(
-            '/html/body/div[@id="content"]/div/div'
-            '/form[@id="formularioValoracion"]/div/div[@class="flexcols"]'
-            '/section/div[@id="tabs2"]/div/div/ol/li'
-            '/div[@class="vuelo-wrap vuelo-wrap3"]/div[@class="flexcols"]'
-            '/div[@class="flexcol-right acciones3 clearfix"]/div/div/strong'
-            '/text()'
-        )
-    else:
-        param = generate_request_params(QUERY_PARAMS)
-        session = requests.session()
-        post_request = session.post(
-            'https://en.evelop.com/b2c'
-            '/pages/flight/disponibili'
-            'dadSubmit.html?', param, verify=False
-        ).text
-        price_list = []
-        for params in get_params[0]:
-            for ret_params in get_params[1]:
-                get_request_1 = session.get(
-                    'https://en.evelop.com/b2c/pages/flight/'
-                    'availabilitySelectFlight.html?', params=params,
-                    verify=False
-                ).content
-                get_request_2 = session.get(
-                    'https://en.evelop.com/b2c/pages/flight/'
-                    'availabilitySelectFlight.html?', params=ret_params,
-                    verify=False
-                ).content
-                tree = html.fromstring(get_request_2)
-                price = tree.xpath(
-                    '//*[@id="selected-routes"]/div/div/ol/li/div[1]/div[1]/div[1]'
-                    '/div/strong'
-                )[0].text.strip().encode('latin-1').decode('utf-8')
-                price_list.append(price)
-
-    return price_list
-
-
-def parse_div(data_page, route):
-    """"""
-
-    data_path = parse_results(data_page, route)
-
-    quote_dict = {}
-    selected_flights = []
-
-    for flight in data_path:
-        selected_flight = []
-        for data in flight:
-            way = data.xpath(
-                'div[@class="aerolinea"]/text()|'
-                'div[@class="aerop"]/span/text()'
-            )
-            dep_city = re.findall(r'[A-Z]{3}', way[0])[0]
-            arr_city = re.findall(r'[A-Z]{3}', way[0])[1]
-            dep_time = data.xpath(
-                'div[@class="salida"]/span[@class="hora"]/text()'
-            )[0].strip()
-            arr_time = data.xpath(
-                'div[@class="llegada"]/span[@class="hora"]/text()'
-            )[0].strip()
-            flight_class = data.xpath(
-                'div[@class="clase"]/span[@class="left clearfix clase"]'
-                '/span[@class="tipo-clase"]/text()|'
-                'div[@class="left clearfix clase "]/span[@class="tipo-clase"]'
-                '/text()'
-            )[0]
-            if route == 'ROUND_TRIP':
-                flight = data.xpath(
-                    'div[@class="radio"]/input'
-                )[0].get('onclick')
-                name = re.findall(r'\(\'([A-Z0-9]+)', flight)[0]
-                direction = re.findall(r'\'(\w+)\'', flight)[0]
-                param_for_name_1 = re.findall(r'\'(\w+)\'', flight)[1]
-                param_for_name_2 = re.findall(r'\b[A-Z0-9.+]{3,4}\b', flight)[
-                    0]
-                selected_flight.append(
-                    {'flightId': '{0};#{1}#{2}'.format(
-                        name, param_for_name_1, param_for_name_2
-                    ), 'direction': direction}
-                )
-            if data_path.index(flight) == 0:
-                quote_dict['Outbound'] = {
-                    'dep_city': dep_city, 'arr_city': arr_city,
-                    'dep_time': dep_time, 'arr_time': arr_time,
-                    'flight_class': flight_class
-                }
-            else:
-                quote_dict['Return'] = {
-                    'dep_city': dep_city, 'arr_city': arr_city,
-                    'dep_time': dep_time, 'arr_time': arr_time,
-                    'flight_class': flight_class
-                }
-
-        selected_flights.append(selected_flight)
-        price = get_price(selected_flights, route, data_page)
-        print(quote_dict)
-        print(price)
-
-    return quote_dict
-
-
-def parse_results(data_page, route):
+def parse_results(data_page, search_params):
     """Get data about flights."""
 
-    data = data_page.xpath(
-        '/html/body/div[@id="content"]'
-        '/div/div/form[@id="formularioValoracion"]'
-        '/div/div[@class="flexcols"]/section'
-        '/div[@id="tabs2"]/div/div'
-    )[0]
+    try:
+        data = data_page.xpath(
+            '/html/body/div[@id="content"]'
+            '/div/div/form[@id="formularioValoracion"]'
+            '/div/div[@class="flexcols"]/section'
+            '/div[@id="tabs2"]/div/div'
+        )[0]
+    except IndexError:
+        return None
     flights = []
-    if route == 'ONE_WAY':
+    if search_params['flight_type'] == 'ONE_WAY':
         results = data.xpath(
             'ol/li/div[@class="vuelo-wrap vuelo-wrap3"]'
-            '/div[@class="flexcols"]'#/div[@class="flexcol-main datos"]/div'
+            '/div[@class="flexcols"]'
         )
-        price = 0.0
-        quote = None
+
         for result in results:
-            price = ......
-            flight = parse_div(data_page, route)
-            flight['price'] = price
-            flights.append(flight)
+            flight_dict = {}
+            price = result.xpath(
+                'div[@class="flexcol-right acciones3 clearfix"]'
+                '/div/div/strong/text()'
+            )[0]
+
+            flight = parse_div(result, search_params['flight_type'])
+
+            flight['flight_time'] = calculate_flight_time(
+                flight['dep_time'], flight['arr_time']
+            )
+            flight['date'] = search_params['dep_date']
+            flight_dict['Outbound'] = flight
+            flight_dict['price'] = price
+            flights.append(flight_dict)
+
     else:
         results = data.xpath(
             'div[@class="wrap-sel-custom combinado"]'
             '/div[@class="grid-cols clearfix"]/div'
         )
+        flights = []
+        flights_xpath = []
         for result in results:
-            flights.append(
+            flights_xpath.append(
                 result.xpath('div[@class="datos"]/div[position() mod 2 = 1]')
             )
+
+        for flight_ow in flights_xpath[0]:
+            for flight_rt in flights_xpath[1]:
+                outbound_dict = parse_div(
+                    flight_ow, search_params['flight_type']
+                )
+                return_dict = parse_div(
+                    flight_rt, search_params['flight_type']
+                )
+
+                flight_info = {
+                    'Outbound': outbound_dict, 'Return': return_dict
+                }
+
+                flights.append(flight_info)
+
+                outbound_dict['flight_time'] = calculate_flight_time(
+                    outbound_dict['dep_time'], outbound_dict['arr_time']
+                )
+                return_dict['flight_time'] = calculate_flight_time(
+                    return_dict['dep_time'], return_dict['arr_time']
+                )
+
+                outbound_dict['date'] = search_params['dep_date']
+                return_dict['date'] = search_params['ret_date']
+
+                search_params_for_ow = flight_ow.xpath(
+                    'div[@class="radio"]/input'
+                )[0].get('onclick')
+                search_params_for_rt = flight_rt.xpath(
+                    'div[@class="radio"]/input'
+                )[0].get('onclick')
+                flight_info['price'] = get_price(
+                    [search_params_for_ow, search_params_for_rt], search_params
+                )
 
     return flights
 
 
-def generate_quotes(data):
-    """To prepare data to print."""
+def parse_div(result, route):
+    """"""
+    if route == 'ONE_WAY':
+        result = result.xpath('div[@class="flexcol-main datos"]/div')[0]
+    way = result.xpath(
+        'div[@class="aerolinea"]/text()|div[@class="aerop"]/span/text()'
+    )
+    dep_city = re.findall(r'[A-Z]{3}', way[0])[0]
+    arr_city = re.findall(r'[A-Z]{3}', way[0])[1]
+    dep_time = result.xpath(
+        'div[@class="salida"]/span[@class="hora"]/text()'
+    )[0].strip()
+    arr_time = result.xpath(
+        'div[@class="llegada"]/span[@class="hora"]/text()'
+    )[0].strip()
+    flight_class = result.xpath(
+        'div[@class="clase"]/span[@class="left clearfix clase"]'
+        '/span[@class="tipo-clase"]/text()|'
+        'div[@class="left clearfix clase "]/span[@class="tipo-clase"]'
+        '/text()'
+    )[0]
 
-    if len(data) == 0:
-        quotes = None
-    elif len(data) == 1:
-        quotes = []
-        for quote in data[0]:
-            quotes.append(
-                [quote[:-2],
-                 str('{:.2f}'.format(quote[-1])) + ' ' + quote[-2]]
-            )
-    else:
-        quotes = []
-        for quote_ob in data[0]:
-            for quote_rt in data[1]:
-                quote = [
-                    quote_ob[:-2], quote_rt[:-2],
-                    str(
-                        '{:.2f}'.format(
-                            sum(
-                                [quote_ob[-1], quote_rt[-1], 12]
-                            )
-                        )
-                    ) + ' ' + quote_ob[-2]
-                ]
-                quotes.append(quote)
+    return {
+        'dep_city': dep_city, 'arr_city': arr_city, 'dep_time': dep_time,
+        'arr_time': arr_time, 'flight_class': flight_class
+    }
 
-    return quotes
+
+def calculate_flight_time(dep_time, arr_time):
+
+    dep_time = dep_time.split(':')
+    arr_time = arr_time.split(':')
+    dep_time = datetime.timedelta(
+        hours=float(dep_time[0]), minutes=float(dep_time[1])
+    )
+    arr_time = datetime.timedelta(
+        hours=float(arr_time[0]), minutes=float(arr_time[1])
+    )
+
+    return re.findall(r'\w{1,2}:\w{2}', str(arr_time - dep_time))[0]
+
+
+def get_price(params, search_params):
+
+    params_post = generate_request_params(search_params)
+    session = requests.session()
+
+    post_request = session.post(
+        'https://en.evelop.com/b2c'
+        '/pages/flight/disponibili'
+        'dadSubmit.html?', params_post, verify=False
+    ).text
+
+    new_search_params = []
+    for param in params:
+         name = re.findall(r'\(\'([A-Z0-9]+)', param)[0]
+         direction = re.findall(r'\'(\w+)\'', param)[0]
+         param_for_name_1 = re.findall(r'\'(\w+)\'', param)[1]
+         param_for_name_2 = re.findall(r'\b[A-Z0-9.+]{3,4}\b', param)[0]
+         new_search_params.append({
+             'flightId': '{0};#{1}#{2}'.format(
+                 name, param_for_name_1, param_for_name_2
+             ), 'direction': direction
+         })
+    get_request_1 = session.get(
+        'https://en.evelop.com/b2c/pages/flight/'
+        'availabilitySelectFlight.html?', params=new_search_params[0],
+        verify=False
+    ).content
+    get_request_2 = session.get(
+        'https://en.evelop.com/b2c/pages/flight/'
+        'availabilitySelectFlight.html?', params=new_search_params[1],
+        verify=False
+    ).content
+    tree = html.fromstring(get_request_2)
+    price = tree.xpath(
+        '//*[@id="selected-routes"]/div/div/ol/li/'
+        'div[1]/div[1]/div[1]/div/strong'
+    )[0].text.strip().encode('latin-1').decode('utf-8')
+    # price = tree.xpath(
+    #     '/html/body/div[@id="content"]/div/div'
+    #     '/form[@id="formularioValoracion"]/div/div[@class="flexcols"]/section'
+    #     '/div[@id="tabs2"]/div/div/div[@id="selected-routes"]/div/div/ol/li'
+    #     '/div[@class="vuelo-wrap"]/div[@class="flexcols"]'
+    #     '/div[@class="flexcol-right acciones"]/div/strong'
+    # )
+    return price
 
 
 def scrape(search_params):
@@ -478,50 +481,48 @@ def scrape(search_params):
         search_params = manual_input(AVAILABLE_ROUTES)
 
     data_page = get_data_page(search_params)
-    data = parse_results(data_page, search_params['flight_type'])
-    quotes = generate_quotes(data)
+    data = parse_results(data_page, search_params)
 
-    return quotes
+    return data
 
 
 def print_result(result_func):
     """Printing results."""
 
-    flight_type_list = ['Outbound', 'Return']
-    try:
-        for info in result_func:
-            for quote in info[:-1]:
-
-                if type(quote) == list:
-                    print(flight_type_list[info.index(quote)], '\n')
-                    print('Way: {0} - {1}'.format(quote[0], quote[1]))
-                    print('Date:', quote[2])
-                    print('Departure time:', quote[3])
-                    print('Arrival time:', quote[4])
-                    print('Flight time:', quote[5])
-                    print('Class:', quote[6], '\n')
-            print('Total price:', info[-1])
-            print('\n')
-    except TypeError:
+    if result_func is None:
         print(
-            'There is not availability enough '
-            'for the selected flights. Please '
-            'select another date.'
+            'There is not availability enough for the '
+            'selected flights. Please select another date.'
         )
+    else:
+        for quote in result_func:
+            for key in quote:
+                value = quote.get(key)
+                if isinstance(value, dict):
+                    print(key, '\n')
+                    print(
+                        'Way: {0} - {1}'.format(
+                            value['dep_city'], value['arr_city']
+                        )
+                    )
+                    print('Date:', value['date'])
+                    print('Departure time:', value['dep_time'])
+                    print('Arrival time:', value['arr_time'])
+                    print('Flight time:', value['flight_time'])
+                    print('Class:', value['flight_class'], '\n')
+            print('Price:', quote['price'])
+            print('\n')
 
 
 if __name__ == '__main__':
     AVAILABLE_ROUTES = get_available_routes()
     QUERY_PARAMS = get_query_params_from_command_line()
-    # while True:
-    #     result_data = scrape(query_params)
-    #     print_result(result_data)
-    #     query_params = None
-    #     if input(
-    #         'Enter "EXIT" to close program. '
-    #         'For continue press "Enter". '
-    #     ).upper() == 'EXIT':
-    #         break
-    # search = manual_input(get_available_routes())
-    a = get_data_page(QUERY_PARAMS)
-    print(path_to_data(a, QUERY_PARAMS['flight_type']))
+    while True:
+        RESULT_DATA = scrape(QUERY_PARAMS)
+        print_result(RESULT_DATA)
+        QUERY_PARAMS = None
+        if input(
+            'Enter "EXIT" to close program. '
+            'For continue press "Enter". '
+        ).upper() == 'EXIT':
+            break
