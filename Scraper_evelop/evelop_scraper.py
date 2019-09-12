@@ -1,4 +1,4 @@
-"""Python 3.7. Parsing of the web site https://www.orbest.com/."""
+"""Python 3.7. Parsing of the web site https://www.evelop.com/."""
 
 
 import argparse
@@ -7,19 +7,17 @@ import json
 import re
 import requests
 
-import evelop_sql
-
 from lxml import html
 
 
-def check_flight_type(way):
+def check_flight_type(flight_type):
     """Check that flight type is valid."""
 
     try:
-        way = way.upper()
+        flight_type = flight_type.upper()
     except AttributeError:
         return False
-    if way in {'ONE_WAY', 'ROUND_TRIP'}:
+    if flight_type in {'ONE_WAY', 'ROUND_TRIP'}:
         return True
     print(
         'Incorrect flight type. Please, '
@@ -29,29 +27,28 @@ def check_flight_type(way):
     return False
 
 
-def check_cities(dep_city, arr_city, routes):
+def check_cities(dep_city, arr_city):
     """Check that IATA codes are valid."""
-
 
     try:
         dep_city = dep_city.upper()
         arr_city = arr_city.upper()
     except AttributeError:
         return False
-    if dep_city not in routes:
+    if dep_city not in AVAILABLE_ROUTES:
         print('Incorrect departure city.')
         return False
-    elif arr_city not in routes:
+    elif arr_city not in AVAILABLE_ROUTES:
         print('Incorrect arrival city.')
         return False
-    elif arr_city not in routes[dep_city]:
+    elif arr_city not in AVAILABLE_ROUTES[dep_city]:
         print('No such routes.')
         print('Available routes: ')
-        for route in routes:
-            print(route, 'to', routes[route])
+        for dep_airport in AVAILABLE_ROUTES:
+            print(dep_airport, 'to', AVAILABLE_ROUTES[dep_airport])
         return False
     elif dep_city == arr_city:
-        print("Departure city mustn't be same arrival city.")
+        print("Departure city mustn't be same arrival city.")  # with
         return False
 
     return True
@@ -60,32 +57,29 @@ def check_cities(dep_city, arr_city, routes):
 def check_dates(*dates):
     """Check if dates are valid."""
 
-    checked_dates = []
-
+    today = datetime.datetime.now().date()
     for date in dates:
         try:
-            date = re.findall(r'\b(\d{1,2})\W(\d{2})\W(\d{4})\b', date)[0]
+            date = re.findall(
+                r'\b(\d{2})[.-/](\d{2})[.-/](\d{4})\b', date)[0]
         except IndexError:
             print('Incorrect date.')
             return False
         except TypeError:
             print('You did not enter a date.')
             return False
-        date = datetime.date(int(date[2]), int(date[1]), int(date[0]))
-
-        today = datetime.datetime.now()
-        today = datetime.date(today.year, today.month, today.day)
+        date = datetime.date(*map(int, reversed(date)))
         if not date:
             print('Incorrect date')
             return False
         if date <= today:
-            print('You must choose a future date.')
+            print(
+                'Departure date must be greater than today '
+                'and return date greater than departure date.'
+            )
             return False
-        if date and date >= today:
-            checked_dates.append(date)
-    if checked_dates[0] > checked_dates[1]:
-        print("Departure date mustn't be more than return date.")
-        return False
+        today = date
+
     return True
 
 
@@ -94,11 +88,13 @@ def check_passengers(adults, children, infants):
 
     try:
         adults = int(adults)
+        children = int(children)
+        infants = int(infants)
     except ValueError:
-        print('Number of adults must be integer number.')
+        print('Number of passengers must be integer number.')
         return False
     except TypeError:
-        print('You did not enter number of adults.')
+        print('You did not enter number of adults, children or infants.')
         return False
 
     if adults <= 0 or adults > 9:
@@ -108,32 +104,20 @@ def check_passengers(adults, children, infants):
         )
         return False
 
-    try:
-        children = int(children)
-    except ValueError:
-        print('Number of children must be integer number.')
-        return False
-    except TypeError:
-        print('You did not enter number of children.')
-        return False
     if children < 0 or children + adults > 9:
-        print('Number of children must be more or equal 0 '
-              'and less or equal number of adults, and '
-              'sum of number of adults and children must '
-              'not be more than 9.')
+        print(
+            'Number of children must be more or equal 0 '
+            'and less or equal number of adults, and '
+            'sum of number of adults and children must '
+            'not be more than 9.'
+        )
         return False
 
-    try:
-        infants = int(infants)
-    except ValueError:
-        print('Number of infants must be integer number.')
-        return False
-    except TypeError:
-        print('You did not enter number of infants.')
-        return False
     if infants < 0 or infants > adults or infants > 5:
-        print('Number of infants must be more or equal '
-              '0 and less or equal number of adults.')
+        print(
+            'Number of infants must be more or equal '
+            '0 and less or equal number of adults.'
+        )
         return False
 
     return True
@@ -144,38 +128,35 @@ def get_query_params_from_command_line():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-f', '--flight_type', help='input way type("ONE_WAY" or "ROUND_TRIP")'
+        '-f',
+        '--flight_type', help='input flight type("ONE_WAY" or "ROUND_TRIP")'
     )
     parser.add_argument(
-        '-d', '--dep_city', help='input departure city("LIS", "CUN", "PUJ")'
-    )
+        '-d', '--dep_city', help='input departure city(three-digit IATA code)')
     parser.add_argument(
-        '-a', '--arr_city',  help='input arrival city("LIS", "CUN", "PUJ")'
-    )
-    parser.add_argument('-d_d', '--dep_date', help='input a departure date')
-    parser.add_argument('-r', '--ret_date', help='input a return date')
+        '-a', '--arr_city', help='input arrival city(three-digit IATA code)')
+    parser.add_argument('-d_d', '--dep_date', help='input departure date')
+    parser.add_argument('-r', '--ret_date', help='input return date')
+    parser.add_argument('-n_a', '--num_adults', help='input number of adults')
+    parser.add_argument('-n_c', '--num_child', help='input number of children')
     parser.add_argument(
-        '-n_a', '--num_adults', help='input a number of adults'
-    )
-    parser.add_argument(
-        '-n_c', '--num_child',   help='input a number of children'
-    )
-    parser.add_argument(
-        '-n_i', '--num_infants',  help='input a number of infants'
-    )
+        '-n_i', '--num_infants', help='input number of infants')
 
     args = parser.parse_args()
 
     if not check_flight_type(args.flight_type):
         return None
 
-    if not check_cities(args.dep_city, args.arr_city, AVAILABLE_ROUTES):
+    if not check_cities(args.dep_city, args.arr_city):
         return None
 
-    if args.flight_type == 'ONE_WAY' or args.flight_type == 'one_way':
+    if args.flight_type.upper() == 'ONE_WAY':
+        if not check_dates(args.dep_date):
+            return None
         args.ret_date = args.dep_date
-    if not check_dates(args.dep_date, args.ret_date):
-        return None
+    else:
+        if not check_dates(args.dep_date, args.ret_date):
+            return None
 
     if not check_passengers(args.num_adults, args.num_child, args.num_infants):
         return None
@@ -183,19 +164,21 @@ def get_query_params_from_command_line():
     return {
         'flight_type': args.flight_type.upper(),
         'dep_city': args.dep_city.upper(),
-        'arr_city': args.arr_city.upper(), 'dep_date': args.dep_date,
-        'ret_date': args.ret_date, 'adults': args.num_adults,
-        'children': args.num_child, 'infants': args.num_infants
+        'arr_city': args.arr_city.upper(),
+        'dep_date': args.dep_date,
+        'ret_date': args.ret_date,
+        'adults': args.num_adults,
+        'children': args.num_child,
+        'infants': args.num_infants
     }
 
 
-def manual_input(routes):
+def manual_input():
     """Get query params from manual input."""
 
     while True:
         flight_type = input(
-            'Please, enter type of flight'
-            '("ONE_WAY" or "ROUND_TRIP"): '
+            'Please, enter type of flight ("ONE_WAY" or "ROUND_TRIP"): '
         ).upper()
 
         if check_flight_type(flight_type):
@@ -203,35 +186,29 @@ def manual_input(routes):
 
     while True:
         dep_city = input(
-            'Please, enter IATA '
-            'code of departure city({}): '.format(
-                ', '.join(routes)
-            )
+            'Please, enter IATA code of departure city({}): '.format(
+                ', '.join(AVAILABLE_ROUTES))
         ).upper()
 
         arr_city = input(
-            'Please, enter IATA '
-            'code of arrival city({}): '.format(
-                ', '.join(routes)
-            )
+            'Please, enter IATA code of arrival city({}): '.format(
+                ', '.join(AVAILABLE_ROUTES[dep_city]))
         ).upper()
 
-        if check_cities(dep_city, arr_city, routes):
+        if check_cities(dep_city, arr_city):
             break
 
     while True:
-        dep_date = input(
-            'Please, enter '
-            'departure date(dd/mm/yyyy): '
-        ).upper()
+        dep_date = input('Please, enter departure date(dd/mm/yyyy): ').upper()
 
         if flight_type == 'ROUND_TRIP':
             ret_date = input('Please, enter return date(dd/mm/yyyy): ')
+            if check_dates(dep_date, ret_date):
+                break
         else:
-            ret_date = dep_date
-
-        if check_dates(dep_date, ret_date):
-            break
+            if check_dates(dep_date):
+                ret_date = dep_date
+                break
 
     while True:
         adults = input(
@@ -239,42 +216,45 @@ def manual_input(routes):
             '(number must be more than 0 and less or equal 9): '
         )
         children = input(
-            'Please, enter a number of children'
-            '(number must be more or equal than 0 '
-            'and less or equal number of adults): '
+            'Please, enter a number of children (number must be more or '
+            'equal than 0 and less or equal number of adults): '
         )
         infants = input(
-            'Please, enter a number of infants'
-            '(number must be more or equal than 0 '
-            'and less or equal number of adults): '
+            'Please, enter a number of infants (number must be more or '
+            'equal than 0 and less or equal number of adults): '
         )
 
         if check_passengers(adults, children, infants):
             break
 
     return {
-        'flight_type': flight_type, 'dep_city': dep_city, 'arr_city': arr_city,
-        'dep_date': dep_date, 'ret_date': ret_date, 'adults': adults,
-        'children': children, 'infants': infants
+        'flight_type': flight_type,
+        'dep_city': dep_city,
+        'arr_city': arr_city,
+        'dep_date': dep_date,
+        'ret_date': ret_date,
+        'adults': adults,
+        'children': children,
+        'infants': infants
     }
 
 
 def get_available_routes():
-    """Create list of available routes."""
+    """Generate list of available routes."""
 
-    response = requests.get('https://en.evelop.com/').content
+    response = requests.get('https://en.evelop.com/', verify=False).content
 
     routes_json = re.findall(r'routesWebSale = ({.+});', str(response))[0]
-    routes = re.split(r';', routes_json)[0]
+    routes = re.split(';', routes_json)[0]
     routes_json = json.loads(routes)
 
     return routes_json
 
 
-def get_data_page(search_params):
-    """Get html page from web-site."""
+def generate_request_params(search_params):
+    """Generate params for get web-page with search results."""
 
-    params = {
+    return {
         'buscadorVuelosEsb.tipoTransicion': 'S',
         'buscadorVuelosEsb.routeType': search_params['flight_type'],
         'buscadorVuelosEsb.origen': search_params['dep_city'],
@@ -285,236 +265,232 @@ def get_data_page(search_params):
         'buscadorVuelosEsb.numninos': search_params['children'],
         'buscadorVuelosEsb.numbebes': search_params['infants']
     }
+
+
+def get_data_page(search_params):
+    """Get html page from web-site."""
+
+    params = generate_request_params(search_params)
     tree = html.fromstring(
         requests.post(
-            'https://en.evelop.com/b2c'
-            '/pages/flight/disponibili'
-            'dadSubmit.html?', params
+            'https://en.evelop.com/b2c/pages/flight/'
+            'disponibilidadSubmit.html?',
+            params,
+            verify=False
         ).content
     )
 
-    data = tree.xpath(
-        '/html/body/div[@id="content"]'
-        '/div/div/form[@id="formularioValoracion"]'
-        '/div/div[@class="flexcols"]/section'
-        '/div[@id="tabs2"]/div/div'
+    return tree
+
+
+def parse_results(data_page, search_params):
+    """Get and generate quotes of flights."""
+
+    try:
+        data = data_page.xpath(
+            '/html/body/div[@id="content"]/div/div'
+            '/form[@id="formularioValoracion"]/div/div[@class="flexcols"]'
+            '/section/div[@id="tabs2"]/div/div'
+        )[0]
+    except IndexError:
+        return None
+    flights = []
+    if search_params['flight_type'] == 'ONE_WAY':
+        results = data.xpath(
+            'ol/li/div[@class="vuelo-wrap vuelo-wrap3"]/div[@class="flexcols"]'
+        )
+
+        for result in results:
+            flight_dict = {}
+            price = result.xpath(
+                'div[@class="flexcol-right acciones3 clearfix"]'
+                '/div/div/strong/text()'
+            )[0]
+
+            flight_data = parse_data_div(
+                result.xpath('div[@class="flexcol-main datos"]/div')[0])
+
+            flight_data['flight_time'] = generate_flight_time(
+                flight_data['dep_time'], flight_data['arr_time']) ################################################################################
+            flight_data['date'] = search_params['dep_date']
+            flight_dict['Outbound'] = flight_data
+            flight_dict['price'] = price
+            flights.append(flight_dict)
+
+    else:
+        # The result consists of two nested lists.
+        # The first one contains "outbound" flights,
+        # the second one contains "return" flights.
+        results = data.xpath(
+            'div[@class="wrap-sel-custom combinado"]'
+            '/div[@class="grid-cols clearfix"]/div'
+        )
+        data_xpath = 'div[@class="datos"]/div[position() mod 2 = 1]' ####################################################
+        # Generate flights combinations.
+        for flight_ob in results[0].xpath(data_xpath):
+            outbound_dict = parse_data_div(flight_ob)
+            for flight_ib in results[1].xpath(data_xpath):
+
+                return_dict = parse_data_div(flight_ib)
+
+                flight_info = {
+                    'Outbound': outbound_dict, 'Return': return_dict}
+
+                flights.append(flight_info)
+
+                outbound_dict['flight_time'] = generate_flight_time(
+                    outbound_dict['dep_time'], outbound_dict['arr_time']
+                )
+                return_dict['flight_time'] = generate_flight_time(
+                    return_dict['dep_time'], return_dict['arr_time']
+                )
+
+                outbound_dict['date'] = search_params['dep_date']
+                return_dict['date'] = search_params['ret_date']
+
+                search_params_for_ow = flight_ob.xpath(
+                    'div[@class="radio"]/input')[0].get('onclick')
+                search_params_for_rt = flight_ib.xpath(
+                    'div[@class="radio"]/input')[0].get('onclick')
+                flight_info['price'] = get_price(
+                    search_params_for_ow, search_params_for_rt,
+                    generate_request_params(search_params)
+                )
+
+    return flights
+
+
+def parse_data_div(data_div):
+    """Parse div elements with data from web page."""
+
+    route = data_div.xpath(
+        'div[@class="aerolinea"]/text()|div[@class="aerop"]/span/text()'
+    )[0]
+    dep_city, arr_city = route.replace(
+        ' ', '').replace('\n', '').replace('\t', '').split('-')
+    dep_time = data_div.xpath(
+        'div[@class="salida"]/span[@class="hora"]/text()')[0].strip()
+    arr_time = data_div.xpath(
+        'div[@class="llegada"]/span[@class="hora"]/text()')[0].strip()
+    cabin_class = data_div.xpath(
+        'div[@class="clase"]/span[@class="left clearfix clase"]'
+        '/span[@class="tipo-clase"]/text()|'
+        'div[@class="left clearfix clase "]/span[@class="tipo-clase"]/text()'
+    )[0]
+
+    return {
+        'dep_city': dep_city,
+        'arr_city': arr_city,
+        'dep_time': dep_time,
+        'arr_time': arr_time,
+        'cabin_class': cabin_class
+    }
+
+
+def generate_flight_time(dep_time, arr_time):
+    """Calculate flight time."""
+
+    dep_time = dep_time.split(':')
+    arr_time = arr_time.split(':')
+    dep_time = datetime.timedelta(
+        hours=float(dep_time[0]), minutes=float(dep_time[1]))
+    arr_time = datetime.timedelta(
+        hours=float(arr_time[0]), minutes=float(arr_time[1]))
+
+    return re.findall(r'\w{1,2}:\w{2}', str(arr_time - dep_time))[0]
+
+
+def get_price(param_outbound, param_inbound, params_post):
+    """Get price for round trip way."""
+
+    session = requests.session()
+
+    session.post(
+        'https://en.evelop.com/b2c'
+        '/pages/flight/disponibili'
+        'dadSubmit.html?',
+        params_post,
+        verify=False
     )
 
-    return data
+    for param in param_outbound, param_inbound:
 
+        #  Find the necessary data for query parameters.
+        extra_get_param_data = param.split('(')[1].replace("'", '').replace(
+            '\n', '').replace(r'\s+', '').split(',')
 
-def parse_results(data_page, *args):
-    """Get data about flights."""
+        #  Substitute the needed data into the request
+        extra_get_param = '#'.join(
+            extra_get_param_data[i].strip() for i in (0, 3, 4))
 
-    def parse_results_for_one_way(data_page):
-        """Get data about flights for "one way" flight type."""
+        #  Route type, which was found in
+        #  "extra_get_param_data" for query params.
+        direction = extra_get_param_data[1]
+        get_request_for_round_trip = session.get(
+            'https://en.evelop.com/b2c/pages/flight/'
+            'availabilitySelectFlight.html?',
+            params={'flightId': extra_get_param, 'direction': direction},
+            verify=False
+        ).content
+    tree = html.fromstring(get_request_for_round_trip)
 
-        try:
-            data = data_page[0].xpath('ol/li')
-        except IndexError:
-            return []
-        flights = [
-            information.xpath(
-                'div[@class="vuelo-wrap'
-                ' vuelo-wrap3"]//text()'
-            ) for information in data
-        ]
+    price = tree.xpath(
+        '/html/body/div[@id="tabs2"]/div/div/div[@id="selected-routes"]/div'
+        '/div/ol/li/div[@class="vuelo-wrap"]/div[@class="flexcols"]'
+        '/div[@class="flexcol-right acciones"]/div/strong/text()'
+    )[0].strip().encode('latin-1').decode('utf-8')
 
-        time_dif = []
-        for flight in flights:
-            dep_time = re.findall(r'\d{1,2}:\d{2}',
-                                  ' '.join(flight))[0].split(':')
-            arr_time = re.findall(r'\d{1,2}:\d{2}',
-                                  ' '.join(flight))[1].split(':')
-            dep_time = datetime.timedelta(hours=float(dep_time[0]),
-                                          minutes=float(dep_time[1]))
-            arr_time = datetime.timedelta(hours=float(arr_time[0]),
-                                          minutes=float(arr_time[1]))
-            time_dif.append(re.search(r'\d{1,2}:\d{2}',
-                                      str(arr_time - dep_time))[0])
-        for i, _ in enumerate(time_dif):
-            flights[i].insert(0, time_dif[i])
-        flight_list = [[]]
-        for flight in flights:
-            dep_city = re.findall(r'\w{3}', flight[4])[0]
-            arr_city = re.findall(r'\w{3}', flight[4])[1]
-            price = flight[1]
-            currency_symbol = re.findall(r'\d+,\d{2}\s(.)', price)[0]
-            price = re.findall(r'\d+,\d{2}', price)[0]
-            price = float(re.sub(',', '.', price))
-            dep_time = flight[6]
-            arr_time = flight[8]
-            flight_time = flight[0]
-            flight_class = flight[10]
-            flight = [dep_city, arr_city, args[1], dep_time, arr_time,
-                      flight_time, flight_class, currency_symbol, price]
-            flight_list[0].append(flight)
-
-        return flight_list
-
-    def parse_results_for_round_trip(data_page):
-        """Get data about flights for "round trip" flight type."""
-
-        try:
-            data = data_page[0].xpath(
-                'div[@class="wrap-sel-custom combinado"]'
-                '/div[@class="grid-cols clearfix"]'
-            )
-
-        except IndexError:
-            return []
-
-        dates = args[1:]
-        flights = []
-        for details in data:
-            flight_first = details.xpath(
-                'div[@class="col2 col-first"]'
-                '/div[@class="datos"]/div//text()'
-            )
-
-            flights.append(flight_first)
-            flight_last = details.xpath(
-                'div[@class="col2 col-last"]'
-                '/div[@class="datos"]/div//text()'
-            )
-            flights = [flight_first, flight_last]
-
-        flight_list = [[], []]
-        for i, _ in enumerate(flights):
-            cities = re.findall(r'[A-Z]{3}', ''.join(flights[i]))
-            cities = [cities[i:i + 2] for i in
-                      range(0, len(cities), 2)][:len(cities) // 4]
-            price = re.findall(r'\d+,\d{2}', ''.join(flights[i]))
-            price = re.sub(',', '.', ' '.join(price)).split()
-            price = [float(p) for p in price]
-            currency_symbol = re.findall(
-                r'(.)\d+,\d{2}', ''.join(flights[i])
-            )[0][0]
-            time = re.findall(r'\d{1,2}:\d{2}', ''.join(flights[i]))
-            time = [time[l:l + 2] for l in
-                    range(0, len(time), 2)][:len(time) // 4]
-            flight_class = re.findall(r'Promotional|Economic|Standard|'
-                                      r'Flexible\sPlus|Flexible|Plena',
-                                      ''.join(flights[i]))
-            time_dif = []
-            for j, _ in enumerate(time):
-                dep_time = time[j][0].split(':')
-                arr_time = time[j][1].split(':')
-                dep_time = datetime.timedelta(hours=float(dep_time[0]),
-                                              minutes=float(dep_time[1]))
-                arr_time = datetime.timedelta(hours=float(arr_time[0]),
-                                              minutes=float(arr_time[1]))
-                time_dif.append(re.search(r'\d{1,2}:\d{2}',
-                                          str(arr_time - dep_time))[0])
-            for k, _ in enumerate(price):
-                dep_city = cities[k][0]
-                arr_city = cities[k][1]
-                flight = [
-                    dep_city, arr_city, dates[i], time[k][0], time[k][1],
-                    time_dif[k], flight_class[k], currency_symbol, price[k]
-                ]
-                flight_list[i].append(flight)
-
-        return flight_list
-
-    if args[0] == 'ONE_WAY':
-        return parse_results_for_one_way(data_page)
-    elif args[0] == 'ROUND_TRIP':
-        return parse_results_for_round_trip(data_page)
-
-
-def generate_quotes(data):
-    """To prepare data to print."""
-
-    if len(data) == 0:
-        quotes = None
-    elif len(data) == 1:
-        quotes = []
-        for quote in data[0]:
-            quotes.append(
-                [quote[:-2],
-                 str('{:.2f}'.format(quote[-1])) + ' ' + quote[-2]]
-            )
-    else:
-        quotes = []
-        for quote_ob in data[0]:
-            for quote_rt in data[1]:
-                quote = [
-                    quote_ob[:-2], quote_rt[:-2],
-                    str(
-                        '{:.2f}'.format(
-                            sum(
-                                [quote_ob[-1], quote_rt[-1], 12]
-                            )
-                        )
-                    ) + ' ' + quote_ob[-2]
-                ]
-                quotes.append(quote)
-
-    return quotes
+    return price
 
 
 def scrape(search_params):
     """Get search params if necessary and return quotes."""
 
     if not search_params:
-        search_params = manual_input(AVAILABLE_ROUTES)
+        search_params = manual_input()
 
     data_page = get_data_page(search_params)
-    data = parse_results(
-        data_page, search_params['flight_type'],
-        search_params['dep_date'], search_params['ret_date']
-    )
-    quotes = generate_quotes(data)
+    data = parse_results(data_page, search_params)
 
-    return quotes
+    return data
 
 
 def print_result(result_func):
-    """Printing results."""
+    """Print results."""
 
-    flight_type_list = ['Outbound', 'Return']
-    try:
-        for info in result_func:
-            for quote in info[:-1]:
-
-                if type(quote) == list:
-                    print(flight_type_list[info.index(quote)], '\n')
-                    print('Way: {0} - {1}'.format(quote[0], quote[1]))
-                    print('Date:', quote[2])
-                    print('Departure time:', quote[3])
-                    print('Arrival time:', quote[4])
-                    print('Flight time:', quote[5])
-                    print('Class:', quote[6], '\n')
-            print('Total price:', info[-1])
-            print('\n')
-    except TypeError:
+    if result_func is None:
         print(
-            'There is not availability enough '
-            'for the selected flights. Please '
-            'select another date.'
+            'There is not availability enough for the '
+            'selected flights. Please select another date.'
         )
+    else:
+        for quote in result_func:
+            for key in quote:
+                value = quote.get(key)
+                if isinstance(value, dict):
+                    print(key, '\n')
+                    print(
+                        'Route: {0} - {1}'.format(
+                            value['dep_city'], value['arr_city']
+                        )
+                    )
+                    print('Date:', value['date'])
+                    print('Departure time:', value['dep_time'])
+                    print('Arrival time:', value['arr_time'])
+                    print('Flight time:', value['flight_time'])
+                    print('Class:', value['cabin_class'], '\n')
+            print('Price:', quote['price'])
+            print('-------------------------------------------')
 
 
 if __name__ == '__main__':
     AVAILABLE_ROUTES = get_available_routes()
-    query_params = get_query_params_from_command_line()
+    QUERY_PARAMS = get_query_params_from_command_line()
     while True:
-        result_data = scrape(query_params)
-        print_result(result_data)
-
+        RESULT_DATA = scrape(QUERY_PARAMS)
+        print_result(RESULT_DATA)
+        QUERY_PARAMS = None
         if input(
-                'Enter "Table" for view schedule database. '
-                'For continue press "Enter".'
-        ).upper() == 'TABLE':
-            evelop_sql.start_program(
-                [query_params['dep_city'], query_params['arr_city']]
-            )
-
-        query_params = None
-
-        if input(
-            'Enter "EXIT" to close program. '
-            'For continue press "Enter". '
+                'Enter "EXIT" to close program. For continue press "Enter". '
         ).upper() == 'EXIT':
             break
